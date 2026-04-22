@@ -8,6 +8,16 @@ def withinRect(cx, cy, left, top, width, height):
     dy = cy - closestY
     return (dx * dx + dy * dy) <= (radius * radius)
 
+def eatPellet(app):
+    for i in range(len(app.pellets)):
+        pelletX, pelletY = app.pellets[i]
+        dx = app.pacmanX - pelletX
+        dy = app.pacmanY - pelletY
+        if (dx * dx + dy * dy)**0.5 <= 11:
+            app.score += 10
+            app.pellets.pop(i)
+            break
+
 def collidesWithGhost(app):
     for ghostX, ghostY in app.antagonistPositions:
         dx = app.pacmanX - ghostX
@@ -17,6 +27,7 @@ def collidesWithGhost(app):
     return False
 
 def onAppStart(app):
+    app.steps = 0
     app.background = 'black'
     app.height = 650
     app.width = 460
@@ -62,10 +73,33 @@ def onAppStart(app):
                  (305,590,30,30), (335,590,30,30), (365,590,30,30), (395,590,30,30), #Bottom row
                  (425,590,30,30), (0,50,5,240), (455,50,5,240), (0,320,5,300), #Thin border walls
                  (455,320,5,300)} #Thin border walls
+    app.pellets = [(20,95), (50,95), (80,95), (110,95), (140,95), (170,95), (200,95), 
+                   (260,95), (290,95), (320,95), (350,95), (380,95), (410,95), (440,95), #end of row 1
+                   (20,125), (110,125), (200,125), (260,125), (350,125), (440,125), #end of row 2
+                   (20,155), (50,155), (80,155), (110,155), (140,155), (170,155), (200,155),
+                   (230,155), (260,155), (290,155), (320,155), (350,155), (380,155), (410,155), (440,155), #end of row 3
+                   (20,185), (110,185), (170,185), (290,185), (350,185), (440,185), #end of row 4
+                   (20,215), (50,215), (80,215), (110,215), (170,215), (200,215), 
+                   (290,215), (260,215), (350,215), (380,215), (410,215), (440,215), (110,245), (350,245), #end of row 6
+                   (110,275), (350,275), (110,305), (350,305), (110,335), (350,335), #end of row 9
+                   (110,365),(350,365), (20,395), (50,395), (80,395), (110,395), #end of row 10
+                   (140,395), (170,395), (200,395), (260,395), (290,395), (320,395), #row 11
+                   (350,395), (380,395), (410,395), (440,395), (20,425), (110,425), (200,425), #row 12
+                   (260,425), (350,425), (440,425), (20,455), (50,455), (110,455), #end of row 12
+                   (140,455), (170,455), (200,455), (260,455), (290,455), 
+                   (320,455), (350,455), (410,455), (440,455), (50,485), (110,485), #end of row 13
+                   (170,485), (290,485), (350,485), (410,485), (20,515), (50,515), #end of row 14
+                   (80,515), (110,515), (170,515), (200,515), (260,515), (290,515),
+                   (350,515), (380,515), (410,515), (440,515), (20,545), (200,545), #end of row 15
+                   (260,545), (440,545), (20,575), (50,575), (80,575), (110,575), 
+                   (140,575), (170,575), (200,575), (230,575), (260,575), (290,575), 
+                   (320,575), (350,575), (380,575), (410,575), (440,575)] #Final row of pellets
 
 
 
 def redrawAll(app):
+    for pelletX, pelletY in app.pellets:
+        drawCircle(pelletX, pelletY, 5, fill='white', align='center')
     drawCircle(app.pacmanX, app.pacmanY, 11, fill='yellow')
     if app.rotation == 'right':
         drawPolygon(app.pacmanX, app.pacmanY, app.pacmanX + 11, 
@@ -110,44 +144,47 @@ def redrawAll(app):
 def onKeyHold(app, keys):
         ocx = app.pacmanX
         ocy = app.pacmanY
-        if 'right' in keys and 'left' not in keys:
-            app.rotation = 'right'
-            app.pacmanX += 3
-            if any(withinRect(app.pacmanX, app.pacmanY, *wall) for wall in app.walls):
-                app.pacmanX = ocx
-            if app.pacmanX + 11 >= app.width:
-                app.pacmanX = -11
-        if 'left' in keys and 'right' not in keys:
-            app.rotation = 'left'
-            app.pacmanX -= 3
-            if any(withinRect(app.pacmanX, app.pacmanY, *wall) for wall in app.walls):
-                app.pacmanX = ocx
-            if app.pacmanX - 11 <= 0:
-                app.pacmanX = app.width + 11
-        if 'up' in keys and 'down' not in keys:
-            app.rotation = 'up'
-            app.pacmanY -= 3
-            if any(withinRect(app.pacmanX, app.pacmanY, *wall) for wall in app.walls):
-                app.pacmanY = ocy
-        if 'down' in keys and 'up' not in keys:
-            app.rotation = 'down'
-            app.pacmanY += 3
-            if any(withinRect(app.pacmanX, app.pacmanY, *wall) for wall in app.walls):
-                app.pacmanY = ocy
+        if not app.gameOver:
+            if 'right' in keys and 'left' not in keys:
+                app.rotation = 'right'
+                app.pacmanX += 3
+                if any(withinRect(app.pacmanX, app.pacmanY, *wall) for wall in app.walls):
+                    app.pacmanX = ocx
+                if app.pacmanX + 11 >= app.width:
+                    app.pacmanX = -11
+            if 'left' in keys and 'right' not in keys:
+                app.rotation = 'left'
+                app.pacmanX -= 3
+                if any(withinRect(app.pacmanX, app.pacmanY, *wall) for wall in app.walls):
+                    app.pacmanX = ocx
+                if app.pacmanX - 11 <= 0:
+                    app.pacmanX = app.width + 11
+            if 'up' in keys and 'down' not in keys:
+                app.rotation = 'up'
+                app.pacmanY -= 3
+                if any(withinRect(app.pacmanX, app.pacmanY, *wall) for wall in app.walls):
+                    app.pacmanY = ocy
+            if 'down' in keys and 'up' not in keys:
+                app.rotation = 'down'
+                app.pacmanY += 3
+                if any(withinRect(app.pacmanX, app.pacmanY, *wall) for wall in app.walls):
+                    app.pacmanY = ocy
 
 def onKeyPress(app, key):
     if key == 'r' and app.gameOver:
         onAppStart(app)
 
 def onStep(app):
-    if not app.gameOver:
+    app.steps += 1
+    if not app.gameOver and app.steps % 5 == 0:
+        eatPellet(app)
         if collidesWithGhost(app):
             app.lives -= 1
             app.antagonistPositions = [(230, 275), (200, 305), (230, 305), (260, 305)]
             app.pacmanX = 230
             app.pacmanY = 455
             app.lifeIcons.pop()
-            if app.lives == 0:
+            if app.lives <= 0:
                 app.gameOver = True
 
 def main():
