@@ -1,4 +1,106 @@
 from cmu_graphics import *
+from collections import deque
+
+points = {(20,95), (50,95), (80,95), (110,95), (140,95), (170,95), (200,95), 
+                   (260,95), (290,95), (320,95), (350,95), (380,95), (410,95), (440,95), 
+                   (20,125), (110,125), (200,125), (260,125), (350,125), (440,125), 
+                   (20,155), (50,155), (80,155), (110,155), (140,155), (170,155), (200,155),
+                   (230,155), (260,155), (290,155), (320,155), (350,155), (380,155), (410,155), (440,155), 
+                   (20,185), (110,185), (170,185), (290,185), (350,185), (440,185), 
+                   (20,215), (50,215), (80,215), (110,215), (170,215), (200,215), 
+                   (290,215), (260,215), (350,215), (380,215), (410,215), (440,215), (110,245), (350,245), 
+                   (110,275), (350,275), (110,305), (350,305), (110,335), (350,335), 
+                   (110,365),(350,365), (20,395), (50,395), (80,395), (110,395), 
+                   (140,395), (170,395), (200,395), (260,395), (290,395), (320,395), 
+                   (350,395), (380,395), (410,395), (440,395), (20,425), (110,425), (200,425), 
+                   (260,425), (350,425), (440,425), (20,455), (50,455), (110,455), 
+                   (140,455), (170,455), (200,455), (260,455), (290,455), 
+                   (320,455), (350,455), (410,455), (440,455), (50,485), (110,485), 
+                   (170,485), (290,485), (350,485), (410,485), (20,515), (50,515), 
+                   (80,515), (110,515), (170,515), (200,515), (260,515), (290,515),
+                   (350,515), (380,515), (410,515), (440,515), (20,545), (200,545), 
+                   (260,545), (440,545), (20,575), (50,575), (80,575), (110,575), 
+                   (140,575), (170,575), (200,575), (230,575), (260,575), (290,575), 
+                   (320,575), (350,575), (380,575), (410,575), (440,575), (200,245), 
+                   (260,245), (140,305), (170,275), (200,275), (230,275), (260,275),
+                   (290,275), (110,305), (170,305), (290,305), (320,305), (170,335),
+                   (200,335), (230,335), (230,305),(260,335), (290,335), (110,365), 
+                   (170,365), (290,365), (200,305), (260,305)} #Set up the points where the ghosts or pacman can go
+
+directions = [(30,0), (-30,0), (0,30), (0,-30)] #Directions between two points
+
+graph = {}
+
+for (x,y) in points:
+    neighbors = []
+    for (dx, dy) in directions:
+        neighbor = (x + dx, y + dy)
+        if neighbor in points:
+            neighbors.append(neighbor)
+    graph[(x,y)] = neighbors #Constructing the graph of neighbors for the graph theory
+
+def bfs(start, target, graph): #This is the ghost pathing algorithm.
+    queue = deque([start])
+    cameFrom = {start: None}
+    while queue:
+        current = queue.popleft()
+        if current == target:
+            break
+        for neighbor in graph[current]:
+            if neighbor not in cameFrom:
+                queue.append(neighbor)
+                cameFrom[neighbor] = current
+    path = []
+    curr = target
+    while curr:
+        path.append(curr)
+        curr = cameFrom.get(curr)
+    path.reverse()
+    return path
+
+class Ghost: #Initializing the ghost as a vector.
+    def __init__(self, startPosition, color, type):
+        self.position = startPosition
+        self.color = color
+        self.type = type
+        self.target = startPosition
+        self.path = []
+        self.mode = 'chase' #For later!
+    def update(self, pacmanPosition, pacmanDirection, graph):
+        self.chooseTarget(pacmanPosition, pacmanDirection)
+        self.path = bfs(self.position, self.target, graph)
+        if len(self.path) > 1:
+            self.position = self.path[1]
+    def chooseTarget(self, pacmanPosition, pacmanDirection):
+        if self.type == 'r':
+            self.target = pacmanPosition
+        elif self.type == 'p':
+            dx,dy = pacmanDirection
+            step = 30
+            target = (pacmanPosition[0] + dx*step*4, pacmanPosition[1] + dy*step*4)
+            self.target = getClosestNode(target)
+        elif self.type == 'i':
+            px,py = pacmanPosition
+            bx, by = Blinky.position
+            step = 30
+            targetX = px + (px - bx)
+            targetY = py + (py - by)
+            self.target = getClosestNode((targetX, targetY))
+        elif self.type == 'c':
+            dist = abs(self.position[0] - pacmanPosition[0]) + abs(self.position[1] - pacmanPosition[1])
+            if dist > 150:
+                self.target = pacmanPosition
+            else:
+                self.target = (20,95) 
+
+Blinky = Ghost((230, 275), 'red', 'r')
+Pinky = Ghost((230, 305), 'pink', 'p')
+Inky = Ghost((200, 305), 'cyan', 'i')
+Clyde = Ghost((260, 305), 'orange', 'c')
+
+def getClosestNode(pos):
+    x, y = pos
+    return min(points, key=lambda p: abs(p[0]-x) + abs(p[1]-y)) #locate pacman
 
 def withinRect(cx, cy, left, top, width, height):
     radius = 11
@@ -19,16 +121,30 @@ def eatPellet(app):
             break
 
 def collidesWithGhost(app):
-    for ghostX, ghostY in app.antagonistPositions:
+    for ghost in app.ghosts:
+        ghostX, ghostY = ghost.position
         dx = app.pacmanX - ghostX
         dy = app.pacmanY - ghostY
-        if (dx * dx + dy * dy)**0.5 <= 11:
+        if (dx * dx + dy * dy)**0.5 <= 11 and app.invulnurable == False:
             return True
     return False
 
+def getPacmanDirection(app):
+    if app.rotation == 'right':
+        return (1, 0)
+    elif app.rotation == 'left':
+        return (-1, 0)
+    elif app.rotation == 'up':
+        return (0, -1)
+    elif app.rotation == 'down':
+        return (0, 1)
+    return (0, 0) #failsafe
+
 def onAppStart(app):
     app.steps = 0
+    app.invulnurable = False
     app.background = 'black'
+    app.paused = False
     app.height = 650
     app.width = 460
     app.lives = 3
@@ -37,9 +153,8 @@ def onAppStart(app):
     app.gameOver = False
     app.pacmanX = 230
     app.pacmanY = 455
+    app.ghosts = [Blinky, Pinky, Inky, Clyde]
     app.lifeIcons = [(15, 635), (45, 635), (75, 635)]
-    app.ghostColors = ['red', 'pink', 'cyan', 'orange']
-    app.antagonistPositions = [(230, 275), (200, 305), (230, 305), (260, 305)] #In order: Blinky, Pinky, Inky, Clyde
     app.walls = {(5,50,30,30), (35,50,30,30), (65,50,30,30), (95,50,30,30), #top row of walls
                  (125,50,30,30), (155,50,30,30), (185,50,30,30), (215,50,30,30), #top row of walls
                  (245,50,30,30), (275,50,30,30), (305,50,30,30), (335,50,30,30), #top row of walls
@@ -72,7 +187,7 @@ def onAppStart(app):
                  (185,590,30,30), (215,590,30,30), (245,590,30,30), (275,590,30,30), #Bottom row
                  (305,590,30,30), (335,590,30,30), (365,590,30,30), (395,590,30,30), #Bottom row
                  (425,590,30,30), (0,50,5,240), (455,50,5,240), (0,320,5,300), #Thin border walls
-                 (455,320,5,300)} #Thin border walls
+                 (455,320,5,300), (185,290,2,30), (187,318,90,2), (275,290,2,30),(185,288,30,2), (245,288,32,2)} #Thin walls around ghost pen
     app.pellets = [(20,95), (50,95), (80,95), (110,95), (140,95), (170,95), (200,95), 
                    (260,95), (290,95), (320,95), (350,95), (380,95), (410,95), (440,95), #end of row 1
                    (20,125), (110,125), (200,125), (260,125), (350,125), (440,125), #end of row 2
@@ -94,8 +209,6 @@ def onAppStart(app):
                    (260,545), (440,545), (20,575), (50,575), (80,575), (110,575), 
                    (140,575), (170,575), (200,575), (230,575), (260,575), (290,575), 
                    (320,575), (350,575), (380,575), (410,575), (440,575)] #Final row of pellets
-
-
 
 def redrawAll(app):
     for pelletX, pelletY in app.pellets:
@@ -127,9 +240,9 @@ def redrawAll(app):
         pixelsBeyondLeftEdgeOfCanvas = -leftEdgeofPacman
         cx = app.width + 11 - pixelsBeyondLeftEdgeOfCanvas
         drawCircle(cx, app.pacmanY, 11, fill='Yellow')
-    for i in range(4):
-        ghostX, ghostY = app.antagonistPositions[i]
-        drawCircle(ghostX, ghostY, 11, fill=app.ghostColors[i])
+    for ghost in app.ghosts:
+        cx, cy = ghost.position
+        drawCircle(cx, cy, 11, fill=ghost.color)
     for wall in app.walls:
         left, top, width, height = wall
         drawRect(left, top, width, height, fill='blue')
@@ -144,7 +257,7 @@ def redrawAll(app):
 def onKeyHold(app, keys):
         ocx = app.pacmanX
         ocy = app.pacmanY
-        if not app.gameOver:
+        if not app.gameOver and not app.paused:
             if 'right' in keys and 'left' not in keys:
                 app.rotation = 'right'
                 app.pacmanX += 3
@@ -173,19 +286,32 @@ def onKeyHold(app, keys):
 def onKeyPress(app, key):
     if key == 'r' and app.gameOver:
         onAppStart(app)
+    if key == 'i':
+        app.invulnurable = not app.invulnurable
+    if key == 'p':
+        app.paused = not app.paused
 
 def onStep(app):
     app.steps += 1
-    if not app.gameOver and app.steps % 5 == 0:
+    if not app.gameOver and app.steps % 5 == 0 and not app.paused:
         eatPellet(app)
         if collidesWithGhost(app):
             app.lives -= 1
-            app.antagonistPositions = [(230, 275), (200, 305), (230, 305), (260, 305)]
-            app.pacmanX = 230
-            app.pacmanY = 455
+            if app.lives > 0:
+                Blinky.position = (230, 275)
+                Pinky.position = (230, 305)
+                Inky.position = (200, 305)
+                Clyde.position = (260, 305)
+                app.pacmanX = 230
+                app.pacmanY = 455
             app.lifeIcons.pop()
             if app.lives <= 0:
                 app.gameOver = True
+    if not app.gameOver and app.steps % 15 == 0 and not app.paused:
+        for ghost in app.ghosts:
+            pacmanPos = getClosestNode((app.pacmanX, app.pacmanY))
+            pacmanDirection = getPacmanDirection(app)
+            ghost.update(pacmanPos, pacmanDirection, graph)
 
 def main():
     runApp()
